@@ -1,0 +1,31 @@
+spring:
+  ai:
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY}
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: deepseek-chat
+          temperature: 0.7
+          max-tokens: 500
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY}
+      embedding:
+        options:
+          model: qwen3.7-text-embedding # 或 text-embedding-v3
+          dimensions: 1024 # 可选，建议设为1024，平衡精度与存储[reference:5]
+    chat:
+      client:
+        enabled: false
+
+server:
+  port: 8082
+logging:
+  level:
+    # 开启 Spring AI Client 的日志，用于查看请求和响应
+    org.springframework.ai.chat.client.advisor: DEBUG
+    # 如果你想看更底层的 HTTP 请求交互，可以加上这个（可选）
+    org.springframework.ai.model: DEBUG
+    # 打印底层发给 DeepSeek 的原始请求和响应
+    org.springframework.web.reactive.function.client.ExchangeFunctions: DEBUG
+    org.springframework.ai.chat.client: DEBUG
