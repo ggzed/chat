@@ -2,25 +2,18 @@ package com.ggzed.chat.service.impl;
 
 import com.ggzed.chat.service.ChatService;
 import com.ggzed.chat.tools.InventoryTools;
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 
 @Service
+@RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
 
     private final ChatClient chatClient;
     private final InventoryTools inventoryTools;
-
-    // 手动写构造器，精准指定要注入哪个 Bean
-    public ChatServiceImpl(
-            @Qualifier("deepSeekChatClient") ChatClient chatClient,
-            InventoryTools inventoryTools) {
-        this.chatClient = chatClient;
-        this.inventoryTools = inventoryTools;
-    }
 
 
     @Override

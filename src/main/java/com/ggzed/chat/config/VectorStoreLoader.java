@@ -1,5 +1,6 @@
 package com.ggzed.chat.config;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -9,12 +10,9 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 
 @Component
+@RequiredArgsConstructor
 public class VectorStoreLoader {
     private final VectorStore vectorStore;
-
-    public VectorStoreLoader(VectorStore vectorStore) {
-        this.vectorStore = vectorStore;
-    }
 
     @EventListener(ApplicationReadyEvent.class)
     public void loadVectorStore() {

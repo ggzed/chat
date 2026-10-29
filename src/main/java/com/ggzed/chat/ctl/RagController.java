@@ -7,11 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.document.Document;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -32,6 +28,11 @@ public class RagController {
     @PostMapping(value = "/chat_stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> chatStream(@RequestBody @Valid RagRequest request) {
         return ragService.chatStream(request.getQuery());
+    }
+
+    @PostMapping("/test_security")
+    public String testSecurity(@RequestBody @Valid RagRequest request) {
+        return ragService.testSecurity(request.getQuery());
     }
 
     /**

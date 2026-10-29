@@ -1,9 +1,14 @@
 package com.ggzed.chat.tools;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
+/**
+ * 金融理财相关工具集合。
+ */
+@Slf4j
 @Component
 public class FinanceTools {
 
@@ -17,5 +22,20 @@ public class FinanceTools {
         double profit = principal * rate * (days / 365.0);
         return String.format("根据计算，本金 %.0f 元，年化 %.2f%%，持有 %d 天，预计到期收益为 %.2f 元。",
                 principal, rate * 100, days, profit);
+    }
+
+    @Tool(description = "执行银行转账操作。高危操作，需人工审批。")
+    public String transferMoney() {
+        log.info("执行 transferMoney 方法");
+        return "执行transferMoney方法";
+    }
+
+    @Tool(description = "执行理财产品购买扣款。当用户明确表示要购买理财时调用。")
+    public String buyFinancialProduct(
+            @ToolParam(description = "客户卡号") String accountNo,
+            @ToolParam(description = "购买金额") double amount) {
+
+        log.warn("[真实扣款执行] 正在从账户 {} 扣款 {} 元！", accountNo, amount);
+        return "扣款成功";
     }
 }

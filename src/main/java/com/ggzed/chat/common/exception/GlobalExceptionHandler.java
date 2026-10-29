@@ -4,11 +4,13 @@ import com.ggzed.chat.common.result.Result;
 import com.ggzed.chat.common.result.ResultCode;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.stream.Collectors;
@@ -63,5 +65,13 @@ public class GlobalExceptionHandler {
     public Result<Void> handleException(Exception e) {
         log.error("系统异常: ", e);
         return Result.error(ResultCode.FAIL.getCode(), "系统繁忙，请稍后重试");
+    }
+
+    // 捕获需要人工审批的业务异常，返回 403 + 统一 Result 结构
+    @ExceptionHandler(ApprovalRequiredException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Result<Void> handleApprovalException(ApprovalRequiredException e) {
+        log.warn("审批拦截: {}", e.getMessage());
+        return Result.error(ResultCode.FORBIDDEN.getCode(), e.getMessage());
     }
 }

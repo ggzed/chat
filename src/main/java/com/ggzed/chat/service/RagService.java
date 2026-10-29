@@ -1,5 +1,7 @@
 package com.ggzed.chat.service;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.ai.document.Document;
 import reactor.core.publisher.Flux;
 
@@ -47,4 +49,6 @@ public interface RagService {
      * @return 切分后的文档片段
      */
     List<Document> readAndSplit();
+
+    String testSecurity(String query);
 }

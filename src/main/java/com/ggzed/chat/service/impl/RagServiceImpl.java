@@ -1,5 +1,6 @@
 package com.ggzed.chat.service.impl;
 
+import com.ggzed.chat.advisor.SecurityAdvisor;
 import com.ggzed.chat.service.RagService;
 import com.ggzed.chat.tools.FinanceTools;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +14,6 @@ import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -60,7 +60,7 @@ public class RagServiceImpl implements RagService {
     public RagServiceImpl(
             VectorStore vectorStore,
             FinanceTools financeTools,
-            @Qualifier("deepSeekChatClient") ChatClient chatClient) {
+            ChatClient chatClient) {
         this.vectorStore = vectorStore;
         this.financeTools = financeTools;
         // 基于原始 chatClient，动态挂载 RAG 拦截器
@@ -71,7 +71,8 @@ public class RagServiceImpl implements RagService {
                                         .similarityThreshold(RAG_SIMILARITY_THRESHOLD)
                                         .topK(RAG_TOP_K)
                                         .build())
-                                .build()
+                                .build(),
+                        new SecurityAdvisor()
                 )
                 .build();
     }
@@ -160,5 +161,15 @@ public class RagServiceImpl implements RagService {
         log.info("========== 切分后碎片数: {} ==========", chunks.size());
 
         return chunks;
+    }
+
+    @Override
+    public String testSecurity(String query) {
+        // 注意：这里不需要 RAG，直接给客户端发指令，逼它调工具
+        return ragChatClient.prompt()
+                .user(query)
+                .tools(financeTools) // 挂载了你那个高危的 buyFinancialProduct
+                .call()
+                .content();
     }
 }
