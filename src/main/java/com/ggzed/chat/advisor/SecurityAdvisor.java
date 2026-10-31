@@ -7,6 +7,7 @@ import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.CallAdvisor;
 import org.springframework.ai.chat.client.advisor.api.CallAdvisorChain;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.stereotype.Component;
 
 /**
  * 工具调用安全拦截器。
@@ -15,6 +16,7 @@ import org.springframework.ai.chat.model.Generation;
  * 拦截到高危工具时抛出 {@link ApprovalRequiredException} 中断执行。
  */
 @Slf4j
+@Component
 public class SecurityAdvisor implements CallAdvisor {
 
     /** 需要人工审批的高危工具白名单 */

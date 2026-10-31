@@ -1,6 +1,7 @@
 package com.ggzed.chat.service.impl;
 
 import com.ggzed.chat.advisor.SecurityAdvisor;
+import com.ggzed.chat.advisor.TokenUsageAdvisor;
 import com.ggzed.chat.service.RagService;
 import com.ggzed.chat.tools.FinanceTools;
 import lombok.extern.slf4j.Slf4j;
@@ -60,7 +61,9 @@ public class RagServiceImpl implements RagService {
     public RagServiceImpl(
             VectorStore vectorStore,
             FinanceTools financeTools,
-            ChatClient chatClient) {
+            ChatClient chatClient,
+            SecurityAdvisor securityAdvisor,
+            TokenUsageAdvisor tokenUsageAdvisor) {
         this.vectorStore = vectorStore;
         this.financeTools = financeTools;
         // 基于原始 chatClient，动态挂载 RAG 拦截器
@@ -72,7 +75,8 @@ public class RagServiceImpl implements RagService {
                                         .topK(RAG_TOP_K)
                                         .build())
                                 .build(),
-                        new SecurityAdvisor()
+                        securityAdvisor,
+                        tokenUsageAdvisor
                 )
                 .build();
     }
