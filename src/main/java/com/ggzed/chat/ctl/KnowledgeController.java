@@ -12,21 +12,33 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 文档读取与切分 API（预览切分效果）
+ * 知识库管理 API
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/read")
+@RequestMapping("/api/knowledge")
 @RequiredArgsConstructor
-public class ReadController {
+public class KnowledgeController {
 
     private final RagService ragService;
 
     /**
-     * 读取 PDF 并切分，返回切分后的片段信息
+     * 初始化向量库（读取 PDF -> 切分 -> 向量化 -> 写入 ES）
      */
-    @PostMapping("/simple")
-    public Result<String> simple() {
+    @PostMapping("/init")
+    public Result<String> init() {
+        int count = ragService.initVectorStore();
+        if (count == 0) {
+            return Result.success("向量库已经初始化过了，无需重复加载。");
+        }
+        return Result.success("向量库初始化成功，共存入 " + count + " 个片段。");
+    }
+
+    /**
+     * 读取 PDF 并切分，预览切分效果（不入库）
+     */
+    @PostMapping("/split_preview")
+    public Result<String> splitPreview() {
         List<Document> splitDocuments = ragService.readAndSplit();
 
         // 打印前 3 个切片看看效果

@@ -1,25 +1,26 @@
 package com.ggzed.chat.service.impl;
 
+import com.ggzed.chat.advisor.HybridSearchAdvisor;
 import com.ggzed.chat.advisor.SecurityAdvisor;
 import com.ggzed.chat.advisor.TokenUsageAdvisor;
+import com.ggzed.chat.model.request.RagChatRequest;
 import com.ggzed.chat.service.RagService;
 import com.ggzed.chat.tools.FinanceTools;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.ExtractedTextFormatter;
 import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 import org.springframework.ai.reader.pdf.config.PdfDocumentReaderConfig;
+import org.springframework.ai.session.advisor.SessionMemoryAdvisor;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
-import java.io.File;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -41,17 +42,15 @@ public class RagServiceImpl implements RagService {
 
     /** PDF 文档路径 */
     private static final String PDF_PATH = "doc/xy92.pdf";
-    /** 向量库持久化文件 */
-    private static final String VECTOR_STORE_FILE = "vector-store.json";
+    /** 向量库初始化每批写入条数 */
+    private static final int INIT_BATCH_SIZE = 10;
 
-    /** RAG 问答检索阈值 */
-    private static final double RAG_SIMILARITY_THRESHOLD = 0.3;
-    /** RAG 问答召回数量 */
-    private static final int RAG_TOP_K = 6;
     /** 语义检索召回数量 */
     private static final int SEARCH_TOP_K = 3;
     /** 语义检索阈值 */
     private static final double SEARCH_SIMILARITY_THRESHOLD = 0.5;
+    /** 风控演示使用的固定会话，避免污染真实用户会话 */
+    private static final String SECURITY_TEST_SESSION_ID = "security-test";
 
     private final VectorStore vectorStore;
     private final FinanceTools financeTools;
@@ -62,22 +61,22 @@ public class RagServiceImpl implements RagService {
             VectorStore vectorStore,
             FinanceTools financeTools,
             ChatClient chatClient,
+            HybridSearchAdvisor hybridSearchAdvisor,
+            TokenUsageAdvisor tokenUsageAdvisor,
             SecurityAdvisor securityAdvisor,
-            TokenUsageAdvisor tokenUsageAdvisor) {
+            SessionMemoryAdvisor sessionMemoryAdvisor) {
         this.vectorStore = vectorStore;
         this.financeTools = financeTools;
-        // 基于原始 chatClient，动态挂载 RAG 拦截器
+
+        List<Advisor> advisors = List.of(
+                tokenUsageAdvisor,
+                hybridSearchAdvisor,
+                securityAdvisor,
+                sessionMemoryAdvisor);
+
+        // 基于原始 chatClient 动态挂载 RAG 与记忆拦截器（mutate 会替换默认 Advisor 列表，因此需完整列出）
         this.ragChatClient = chatClient.mutate()
-                .defaultAdvisors(
-                        QuestionAnswerAdvisor.builder(vectorStore)
-                                .searchRequest(SearchRequest.builder()
-                                        .similarityThreshold(RAG_SIMILARITY_THRESHOLD)
-                                        .topK(RAG_TOP_K)
-                                        .build())
-                                .build(),
-                        securityAdvisor,
-                        tokenUsageAdvisor
-                )
+                .defaultAdvisors(advisors)
                 .build();
     }
 
@@ -91,13 +90,13 @@ public class RagServiceImpl implements RagService {
 
         List<Document> chunks = readAndSplit();
         log.info("开始向量化，共 {} 个片段...", chunks.size());
-        vectorStore.add(chunks);
+        // 分批写入，避免单批过大
+        for (int i = 0; i < chunks.size(); i += INIT_BATCH_SIZE) {
+            List<Document> batch = chunks.subList(i, Math.min(i + INIT_BATCH_SIZE, chunks.size()));
+            vectorStore.add(batch);
+            log.info("已存入第 {} 批，共 {} 条", i / INIT_BATCH_SIZE + 1, batch.size());
+        }
         log.info("向量库初始化完成！");
-
-        // 将内存中的向量库持久化到项目根目录
-        File file = new File(VECTOR_STORE_FILE);
-        ((SimpleVectorStore) vectorStore).save(file);
-        log.info("向量库已持久化到 {}", file.getAbsolutePath());
 
         return chunks.size();
     }
@@ -126,21 +125,24 @@ public class RagServiceImpl implements RagService {
     }
 
     @Override
-    public Flux<String> chatStream(String query) {
+    public Flux<String> chatStream(String query, String sessionId) {
         return ragChatClient.prompt()
                 .system(SYSTEM_PROMPT)
                 .user(query)
                 .tools(financeTools)
+                .advisors(a -> a.param(SessionMemoryAdvisor.SESSION_ID_CONTEXT_KEY, sessionId))
                 .stream()
                 .content();
     }
 
     @Override
-    public String chat(String query) {
+    public String chat(RagChatRequest request) {
         return ragChatClient.prompt()
                 .system(SYSTEM_PROMPT)
-                .user(query)
+                .user(request.getQuery())
                 .tools(financeTools)
+                // 告诉记忆拦截器本次请求读写哪个会话，不同 sessionId 之间完全隔离
+                .advisors(a -> a.param(SessionMemoryAdvisor.SESSION_ID_CONTEXT_KEY, request.getSessionId()))
                 .call()
                 .content();
     }
@@ -158,7 +160,7 @@ public class RagServiceImpl implements RagService {
                         .build());
 
         List<Document> rawDocs = reader.read();
-        TokenTextSplitter splitter = new TokenTextSplitter();
+        TokenTextSplitter splitter = TokenTextSplitter.builder().build();
         List<Document> chunks = splitter.apply(rawDocs);
 
         log.info("========== 切分前页数: {} ==========", rawDocs.size());
@@ -169,10 +171,12 @@ public class RagServiceImpl implements RagService {
 
     @Override
     public String testSecurity(String query) {
-        // 注意：这里不需要 RAG，直接给客户端发指令，逼它调工具
+        // 注意：这里不需要 RAG，直接给客户端发指令，逼它调工具；
+        // ragChatClient 默认挂载了记忆拦截器，必须显式指定会话，这里用固定会话避免污染真实用户会话
         return ragChatClient.prompt()
                 .user(query)
                 .tools(financeTools) // 挂载了你那个高危的 buyFinancialProduct
+                .advisors(a -> a.param(SessionMemoryAdvisor.SESSION_ID_CONTEXT_KEY, SECURITY_TEST_SESSION_ID))
                 .call()
                 .content();
     }

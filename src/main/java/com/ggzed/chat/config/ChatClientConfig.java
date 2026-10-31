@@ -5,11 +5,14 @@ import com.ggzed.chat.advisor.TokenUsageAdvisor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.session.SessionService;
+import org.springframework.ai.session.advisor.SessionMemoryAdvisor;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.Ordered;
 
 /**
  * ChatClient 配置
@@ -21,13 +24,28 @@ import org.springframework.context.annotation.Primary;
 public class ChatClientConfig {
 
     /**
-     * 基础客户端：不挂载任何 Advisor，作为 {@link Primary} 默认注入，
-     * 由业务层在 mutate 后自行挂载拦截器（如 RAG 检索）。
+     * 会话记忆拦截器：按 sessionId 读写历史消息，数据落在 H2，跨重启保留。
+     * <p>
+     * 必须最先执行，先把历史消息拼进 Prompt，后续检索类 Advisor 才能基于最新一句用户提问做召回。
+     */
+    @Bean
+    public SessionMemoryAdvisor sessionMemoryAdvisor(SessionService sessionService) {
+        return SessionMemoryAdvisor.builder(sessionService)
+                .order(Ordered.HIGHEST_PRECEDENCE + 100)
+                .build();
+    }
+
+    /**
+     * 基础客户端：作为 {@link Primary} 默认注入，只挂载会话记忆，
+     * 由业务层在 mutate 后自行补充拦截器（如 RAG 检索）。
      */
     @Bean
     @Primary
-    public ChatClient chatClient(@Qualifier("deepSeekChatModel") ChatModel chatModel) {
-        return ChatClient.builder(chatModel).build();
+    public ChatClient chatClient(@Qualifier("deepSeekChatModel") ChatModel chatModel,
+                                 SessionMemoryAdvisor sessionMemoryAdvisor) {
+        return ChatClient.builder(chatModel)
+                .defaultAdvisors(sessionMemoryAdvisor)
+                .build();
     }
 
     /** 纯聊天专线（带 Token 统计） */

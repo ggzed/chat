@@ -60,17 +60,43 @@
             <artifactId>spring-ai-pdf-document-reader</artifactId>
         </dependency>
 
-        <!-- 向量数据库支持 (核心接口) -->
+        <!-- 引入 ES 向量库支持（含 vector-store 核心接口） -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-vector-store</artifactId>
+            <artifactId>spring-ai-starter-vector-store-elasticsearch</artifactId>
         </dependency>
+
+        <!-- Spring Boot 4.x ES 自动配置：提供 Rest5Client / ElasticsearchClient Bean（读取 spring.elasticsearch.*） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-elasticsearch</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>co.elastic.clients</groupId>
+            <artifactId>elasticsearch-java</artifactId>
+            <!-- 版本由 Spring Boot BOM 管理（9.4.5），勿写死，8.x 的 KnnQuery 没有 k() -->
+        </dependency>
+
 
         <!-- Spring AI 2.x 向量检索 Advisor (QuestionAnswerAdvisor) -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-vector-store-advisor</artifactId>
             <version>${spring-ai.version}</version>
+        </dependency>
+
+        <!-- 添加新的 Session 依赖 -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-session-jdbc</artifactId>
+        </dependency>
+
+        <!-- 引入 H2 数据库（仅测试用） -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- Lombok -->

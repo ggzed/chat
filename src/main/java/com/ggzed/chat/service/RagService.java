@@ -1,7 +1,6 @@
 package com.ggzed.chat.service;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import com.ggzed.chat.model.request.RagChatRequest;
 import org.springframework.ai.document.Document;
 import reactor.core.publisher.Flux;
 
@@ -30,18 +29,19 @@ public interface RagService {
     /**
      * RAG 流式问答
      *
-     * @param query 用户提问
+     * @param query     用户提问
+     * @param sessionId 会话 ID，用于多轮记忆隔离
      * @return 流式响应
      */
-    Flux<String> chatStream(String query);
+    Flux<String> chatStream(String query, String sessionId);
 
     /**
      * RAG 非流式问答
      *
-     * @param query 用户提问
+     * @param request 查询内容与会话 ID
      * @return 回答内容
      */
-    String chat(String query);
+    String chat(RagChatRequest request);
 
     /**
      * 读取 PDF 并切分（仅用于预览切分效果）

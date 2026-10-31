@@ -27,7 +27,7 @@ public class ChatController {
      */
     @PostMapping("/simple")
     public Result<String> simple(@RequestBody @Valid ChatRequest request) {
-        return Result.success(chatService.chat(request.getMessage()));
+        return Result.success(chatService.chat(request.getMessage(), request.getSessionId()));
     }
 
     /**
@@ -35,6 +35,6 @@ public class ChatController {
      */
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> stream(@RequestBody @Valid ChatRequest request) {
-        return chatService.streamChat(request.getMessage());
+        return chatService.streamChat(request.getMessage(), request.getSessionId());
     }
 }
