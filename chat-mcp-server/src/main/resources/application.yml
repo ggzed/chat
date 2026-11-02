@@ -1,0 +1,11 @@
+server:
+  port: 8082
+spring:
+  ai:
+    mcp:
+      server:
+        #从 Spring AI 2.0.0 版本开始，官方文档已推荐使用 STREAMABLE 协议来替代旧的 SSE 传输。STREAMABLE 协议通过统一的 /mcp 端点处理所有请求
+        protocol: STREAMABLE  # 必须全大写
+        type: async
+        name: financial-tools-server
+        version: 1.0.0

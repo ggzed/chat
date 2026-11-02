@@ -14,6 +14,7 @@ import org.springframework.ai.reader.ExtractedTextFormatter;
 import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 import org.springframework.ai.reader.pdf.config.PdfDocumentReaderConfig;
 import org.springframework.ai.session.advisor.SessionMemoryAdvisor;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -56,7 +57,7 @@ public class RagServiceImpl implements RagService {
     private final FinanceTools financeTools;
     private final ChatClient ragChatClient;
     private final AtomicBoolean initialized = new AtomicBoolean(false);
-
+    private final ToolCallbackProvider mcpToolProvider;
     public RagServiceImpl(
             VectorStore vectorStore,
             FinanceTools financeTools,
@@ -64,10 +65,10 @@ public class RagServiceImpl implements RagService {
             HybridSearchAdvisor hybridSearchAdvisor,
             TokenUsageAdvisor tokenUsageAdvisor,
             SecurityAdvisor securityAdvisor,
-            SessionMemoryAdvisor sessionMemoryAdvisor) {
+            SessionMemoryAdvisor sessionMemoryAdvisor,ToolCallbackProvider mcpToolProvider) {
         this.vectorStore = vectorStore;
         this.financeTools = financeTools;
-
+        this.mcpToolProvider = mcpToolProvider;
         List<Advisor> advisors = List.of(
                 tokenUsageAdvisor,
                 hybridSearchAdvisor,
@@ -140,7 +141,7 @@ public class RagServiceImpl implements RagService {
         return ragChatClient.prompt()
                 .system(SYSTEM_PROMPT)
                 .user(request.getQuery())
-                .tools(financeTools)
+                .tools(mcpToolProvider) // 挂载 MCP 发现的工具，不再挂载本地 FinanceTools
                 // 告诉记忆拦截器本次请求读写哪个会话，不同 sessionId 之间完全隔离
                 .advisors(a -> a.param(SessionMemoryAdvisor.SESSION_ID_CONTEXT_KEY, request.getSessionId()))
                 .call()

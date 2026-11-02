@@ -9,6 +9,13 @@ spring:
     uris: http://192.168.101.100:9200
     # 如果你有密码就加上 username / password
   ai:
+    mcp:
+      client:
+        streamable-http: # 使用 streamable-http 配置块
+          connections:
+            financial-tools:
+              url: http://localhost:8082
+              endpoint: /mcp  # 默认端点就是 /mcp
     session:
       repository:
         jdbc:
