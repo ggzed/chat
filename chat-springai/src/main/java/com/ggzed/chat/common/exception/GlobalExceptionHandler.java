@@ -63,8 +63,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public Result<Void> handleException(Exception e) {
-        log.error("系统异常: ", e);
-        return Result.error(ResultCode.FAIL.getCode(), "系统繁忙，请稍后重试");
+        // 针对 MCP 连接失败等异常进行日志记录
+        log.error("Agent 运行异常: ", e);
+        // 返回给前端的兜底话术
+        return Result.error(ResultCode.FAIL.getCode(), "抱歉，AI 助手目前遇到了一些网络波动（工具服务连接失败），请稍后再试。");
     }
 
     // 捕获需要人工审批的业务异常，返回 403 + 统一 Result 结构
