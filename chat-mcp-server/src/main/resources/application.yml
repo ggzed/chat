@@ -9,3 +9,20 @@ spring:
         type: async
         name: financial-tools-server
         version: 1.0.0
+
+# Nacos 3.x MCP Registry 注册配置，Nacos 不可用时仅告警，不影响 MCP 服务本地运行
+nacos:
+  server-addr: ${NACOS_SERVER_ADDR:192.168.101.100:8848}
+  namespace: ${NACOS_NAMESPACE:public}
+  # Nacos 3.x 默认开启鉴权，注册与 MCP Registry 均需登录
+  username: ${NACOS_USERNAME:nacos}
+  password: ${NACOS_PASSWORD:nacos}
+  mcp:
+    register:
+      enabled: ${NACOS_MCP_REGISTER_ENABLED:true}
+    service-name: chat-mcp-server
+    group-name: DEFAULT_GROUP
+    # Nacos 侧的协议标识：mcp-streamable-http / mcp-sse / stdio
+    protocol: ${NACOS_MCP_PROTOCOL:mcp-streamable-http}
+    export-path: ${NACOS_MCP_EXPORT_PATH:/mcp}
+    description: 金融业务工具 MCP 服务（Spring AI 2.x）

@@ -30,6 +30,8 @@
         <spring-ai.version>2.1.0-RC1</spring-ai.version>
         <!-- Spring Cloud 最新 GA 版本（对应 Spring Boot 4.0.x；当前 Boot 4.1.1 暂无匹配的正式版本） -->
         <spring-cloud.version>2025.1.4</spring-cloud.version>
+        <!-- Nacos SDK：项目自行调用其 API 完成 MCP 服务注册，不依赖 Spring AI Alibaba 自动配置 -->
+        <nacos.version>3.3.0</nacos.version>
     </properties>
 
     <dependencyManagement>
@@ -50,6 +52,17 @@
                 <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba.nacos</groupId>
+                <artifactId>nacos-client</artifactId>
+                <version>${nacos.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba.nacos</groupId>
+                <artifactId>nacos-maintainer-client</artifactId>
+                <version>${nacos.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
