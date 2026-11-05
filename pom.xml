@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.lol</groupId>
+    <groupId>com.ggzed</groupId>
     <artifactId>chat</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -22,21 +22,29 @@
         <module>chat-springai</module>
         <module>chat-business</module>
         <module>chat-mcp-server</module>
+        <module>chat-langchain4j</module>
+        <module>chat-gateway</module>
     </modules>
 
     <properties>
         <java.version>21</java.version>
-        <!-- Spring AI 2.1.0-RC1 -->
+
+        <!-- 核心框架版本 -->
         <spring-ai.version>2.1.0-RC1</spring-ai.version>
-        <!-- Spring Cloud 最新 GA 版本（对应 Spring Boot 4.0.x；当前 Boot 4.1.1 暂无匹配的正式版本） -->
         <spring-cloud.version>2025.1.4</spring-cloud.version>
-        <!-- Nacos SDK：项目自行调用其 API 完成 MCP 服务注册，不依赖 Spring AI Alibaba 自动配置 -->
-        <nacos.version>3.3.0</nacos.version>
+        <!-- 注意：Spring Cloud Alibaba 版本需与 Spring Cloud 2025.1.x 匹配 -->
+        <spring-cloud-alibaba.version>2025.1.0.0</spring-cloud-alibaba.version>
+
+        <!-- LangChain4j 版本 -->
+        <langchain4j.version>1.23.0</langchain4j.version>
+
+        <!-- 跟随本机 Nacos 服务端 2.5.5；会覆盖 SCA 2025.1.0.0 默认的 nacos-client 3.1.1 -->
+        <nacos.version>2.5.5</nacos.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- Spring AI BOM (统一管理模型、Reader、向量库等核心组件版本) -->
+            <!-- 1. Spring AI BOM -->
             <dependency>
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
@@ -45,7 +53,7 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- Spring Cloud BOM：子模块引入 spring-cloud-starter-* 时无需再写版本 -->
+            <!-- 2. Spring Cloud BOM -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -54,20 +62,34 @@
                 <scope>import</scope>
             </dependency>
 
+            <!-- 3. Spring Cloud Alibaba BOM (统一管理 Nacos 等组件) -->
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>${spring-cloud-alibaba.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- 4. LangChain4j BOM -->
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-bom</artifactId>
+                <version>${langchain4j.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- 5. 强制锁定 Nacos Client 版本为 2.5.5，与本机 Nacos 服务端保持一致 -->
             <dependency>
                 <groupId>com.alibaba.nacos</groupId>
                 <artifactId>nacos-client</artifactId>
                 <version>${nacos.version}</version>
             </dependency>
-            <dependency>
-                <groupId>com.alibaba.nacos</groupId>
-                <artifactId>nacos-maintainer-client</artifactId>
-                <version>${nacos.version}</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 
-    <!-- Spring AI 2.1.0-RC1 虽已在 Central 发布，但保留 milestone 仓库可避免部分传递依赖下载失败 -->
+    <!-- 仓库配置：确保拉取到最新的 RC 版本 -->
     <repositories>
         <repository>
             <id>spring-milestones</id>
@@ -79,6 +101,12 @@
             <id>central</id>
             <name>Maven Central</name>
             <url>https://repo1.maven.org/maven2/</url>
+        </repository>
+        <!-- 部分 SCA 的依赖可能需要从阿里云仓库拉取 -->
+        <repository>
+            <id>aliyun</id>
+            <name>Aliyun Maven</name>
+            <url>https://maven.aliyun.com/repository/public</url>
         </repository>
     </repositories>
 </project>

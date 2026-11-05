@@ -1,7 +1,5 @@
 package com.ggzed.mcpserver.tools;
 
-import org.springframework.ai.mcp.annotation.McpTool;
-import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;

@@ -1,187 +1,190 @@
-# AI Agent Lab (Java Edition)
+# chat
 
-基于 Spring Boot 4 + Spring AI 的 LLM 应用实战项目：用 Java 后端工程的成熟手段（自动装配、依赖注入、Advisor 责任链、分层架构）落地一个带 RAG、多轮记忆与安全风控的企业级 Agent。
+基于 **Spring Boot 4.1.1 + Spring AI 2.1.0-RC1 + Spring Cloud Alibaba Nacos + LangChain4j** 的 AI Agent 微服务示例工程。
 
-## 技术栈
+工程由父工程统一管理版本，下辖 5 个可独立启动的服务：AI 对话/RAG、业务系统、MCP 工具服务、LangChain4j 对话、API 网关。所有 AI 服务通过 Nacos 注册与发现，网关作为唯一对外入口；AI 侧访问业务系统统一经 MCP Server 做防腐层，不再直连业务接口。
 
-| 项目 | 选型 |
-| --- | --- |
-| 运行时 | JDK 21 / Maven 3.6+ |
-| 框架 | Spring Boot 4.1.1 |
-| 微服务 | Spring Cloud 2025.1.4（BOM 统一版本管理） |
-| AI 框架 | Spring AI 2.1.0-RC1 |
-| 工具协议 | Spring AI MCP（Server: WebFlux + SSE / Client: SYNC） |
-| 对话模型 | DeepSeek（`deepseek-chat`） |
-| 向量模型 | DashScope `text-embedding-v3`（1024 维，走 OpenAI 兼容接口） |
-| 向量库 | Elasticsearch 8.13.4（dense_vector + BM25） |
-| 会话存储 | H2 文件库（`./data/chat_session`） |
+## 架构
 
-## 核心能力
-
-- **基础对话**：非流式 + SSE 流式输出（Reactor `Flux`）。
-- **RAG 增强检索**：PDF 读取 → 切分 → 向量化，写入 ES 后用检索结果增强 Prompt。
-- **混合检索**：BM25 关键词召回 + KNN 向量召回，应用层 RRF 融合排序（可观察两路得分，便于调参）。
-- **多轮对话记忆**：接入 Spring AI Session API，`SessionMemoryAdvisor` 按 `sessionId` 读写历史；H2 持久化，重启后会话不丢，不同 `sessionId` 完全隔离。
-- **Token 用量统计**：`TokenUsageAdvisor` 记录每次调用的 Token 与预估费用。
-- **安全风控**：`SecurityAdvisor` 在工具执行前拦截高危工具（如转账）并抛审批异常，配合全局异常处理返回统一错误。
-- **工具调用**：`@Tool` 注解暴露本地 Java 方法（理财收益计算、库存查询等）。
-- **MCP 工具接入**：`chat-springai` 作为 MCP Client，通过 SSE 连接 `chat-mcp-server`，由后者把 `chat-business` 的业务能力包装成 MCP 工具（`queryRiskLevel`），实现「业务服务与 AI 服务解耦」。
-- **统一响应**：所有接口统一 `Result<T>` 包装，分层架构 `ctl → service → model`，参数用 `@Valid` 校验。
-
-## Advisor 责任链
-
-Advisor 按 `getOrder()` 升序执行，`before` 由外到内、`after` 由内到外：
-
-```text
-TokenUsageAdvisor      HIGHEST + 100   记录耗时与 Token
-SessionMemoryAdvisor   HIGHEST + 100   加载历史消息（先于检索，保证检索只用最新一问）
-HybridSearchAdvisor    HIGHEST + 200   召回资料，只替换最后一条 UserMessage
-ToolCallingAdvisor     默认             工具循环
-SecurityAdvisor        HIGHEST + 400   工具执行前高危拦截
 ```
+                 ┌──────────────────────────────────────────────┐
+   HTTP 调用      │  chat-gateway :8084                          │
+  ──────────────▶│  /api/springai/**      /api/langchain4j/**   │
+                 └───────┬───────────────────────┬──────────────┘
+                         │ lb://chat-springai     │ lb://chat-langchain4j
+                         ▼                        ▼
+              ┌────────────────────┐   ┌──────────────────────┐
+              │ chat-springai      │   │ chat-langchain4j     │
+              │ :8080              │   │ :8083                │
+              │ 对话/RAG/混合检索/  │   │ LangChain4j AI       │
+              │ 会话记忆/Advisor    │   │ Service + 工具        │
+              └─────────┬──────────┘   └──────────────────────┘
+                        │ MCP Client（按服务名从 Nacos 动态解析）
+                        ▼
+              ┌────────────────────┐
+              │ chat-mcp-server    │  MCP 协议 /mcp (STREAMABLE)
+              │ :8082              │  工具：queryRiskLevel
+              └─────────┬──────────┘
+                        │ REST
+                        ▼
+              ┌────────────────────┐
+              │ chat-business      │  GET /api/business/risk
+              │ :8081              │  （模拟业务系统）
+              └────────────────────┘
+```
+
+## 模块
+
+| 模块 | 端口 | Nacos 服务名 | 包名 | 职责 |
+|---|---|---|---|---|
+| `chat-springai` | 8080 | `chat-springai` | `com.ggzed.springai` | Spring AI 对话、RAG、混合检索、会话记忆、MCP Client |
+| `chat-business` | 8081 | 不注册 | `com.ggzed.business` | 模拟业务系统，供 MCP Server 调用 |
+| `chat-mcp-server` | 8082 | `chat-mcp-server` | `com.ggzed.mcpserver` | MCP Server（WebMVC + STREAMABLE），暴露业务工具 |
+| `chat-langchain4j` | 8083 | `chat-langchain4j` | `com.ggzed.lc4j` | LangChain4j AI Service + 本地工具 |
+| `chat-gateway` | 8084 | `chat-gateway` | `com.ggzed.gateway` | Spring Cloud Gateway 统一入口、跨域 |
+
+父工程坐标 `com.ggzed:chat`，`packaging=pom`，只做 `<modules>` 与依赖版本管理（Spring Boot / Spring AI / Spring Cloud BOM、`java.version`），子模块依赖不写版本。
+
+## 统一的对话契约
+
+`chat-springai` 与 `chat-langchain4j` 使用**完全相同**的路径、入参、出参，客户端可无缝切换。
+
+| 项 | 约定 |
+|---|---|
+| 非流式 | `POST /api/chat/simple` |
+| 流式 | `POST /api/chat/stream`（SSE，目前仅 `chat-springai` 提供） |
+| 网关闭环节 | `POST /api/springai/chat/simple`、`POST /api/langchain4j/chat/simple` |
+| 请求体 | `{"message": "问题内容", "sessionId": "会话 ID"}` |
+| 成功响应 | `{"code": 200, "message": "操作成功", "data": {"sessionId": "...", "content": "..."}}` |
+| 校验失败 | `{"code": 400, "message": "消息内容不能为空", "data": null}` |
+
+约束：`message` 必填且 ≤4000 字符，`sessionId` 必填且 ≤64 字符。
 
 ## 接口一览
 
-| 模块 | 方法 | 路径 | 请求体 / 参数 | 说明 |
-| --- | --- | --- | --- | --- |
-| 对话 | POST | `/api/chat/simple` | `{message, sessionId}` | 非流式对话 |
-| 对话 | POST | `/api/chat/stream` | `{message, sessionId}` | 流式对话（SSE） |
-| RAG | POST | `/api/rag/chat` | `{query, sessionId}` | RAG 非流式问答 |
-| RAG | POST | `/api/rag/chat_stream` | `{query, sessionId}` | RAG 流式问答（SSE） |
-| 检索 | POST | `/api/search/semantic` | `query`（query 参数） | 纯向量语义检索 |
-| 检索 | POST | `/api/search/hybrid` | `{query}` | 混合检索（BM25 + KNN + RRF） |
-| 知识库 | POST | `/api/knowledge/init` | 无 | 初始化向量库（幂等） |
-| 知识库 | POST | `/api/knowledge/split_preview` | 无 | 预览 PDF 切分结果，不入库 |
-| 风控 | POST | `/api/security/test` | `{query}` | 绕过 RAG 直发指令，验证工具拦截 |
-| 业务 | GET | `/api/business/risk` | `customerId` | `chat-business`(8081) 模拟客户风控等级查询 |
+### chat-springai（8080）
 
-`sessionId` 必填（最长 64 字符），同一 ID 的多轮对话共享上下文。除最后一行属于 `chat-business`（8081）外，其余均在 `chat-springai`（8080）。
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/chat/simple` | 基础对话（统一契约） |
+| POST | `/api/chat/stream` | 流式对话，`text/event-stream` |
+| POST | `/api/rag/chat` | RAG 对话（`{query, sessionId}`） |
+| POST | `/api/rag/chat_stream` | RAG 流式对话 |
+| POST | `/api/search/semantic?query=` | 向量检索 |
+| POST | `/api/search/hybrid` | 语义 + 关键词混合检索（RRF） |
+| POST | `/api/knowledge/init` | 初始化向量库 |
+| POST | `/api/knowledge/split_preview` | 文档切分预览 |
+| POST | `/api/security/test` | 安全 Advisor 演示 |
 
-## 模块结构
+### chat-langchain4j（8083）
 
-本仓库是微服务父工程（`com.lol:chat`，`packaging=pom`），只负责 `<modules>` 与依赖版本管理（Spring Boot / Spring AI / Spring Cloud BOM），不含业务代码：
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/chat/simple` | AI Service 对话（统一契约） |
 
-```text
-chat/                          # 父工程，packaging=pom
-├── pom.xml                    # 聚合 + 统一版本管理
-├── chat-springai/   :8080     # AI 服务：对话 / RAG / Agent，同时是 MCP Client
-├── chat-mcp-server/ :8082     # MCP Server：把业务能力包装成 MCP 工具
-└── chat-business/   :8081     # 业务服务：客户风控等级查询
+模型为 DeepSeek 的 OpenAI 兼容接口，当前配置为非流式 `OpenAiChatModel`，因此不提供 `/stream`。
+
+### chat-mcp-server（8082）
+
+- 协议端点：`POST /mcp`，MCP `STREAMABLE`（JSON-RPC，非 REST）
+- 工具：`queryRiskLevel(customerId)`，内部调用 `chat-business` 的 `/api/business/risk`，超时与异常均做自然语言降级，不向模型抛出堆栈
+- 启动即注册到 Nacos；`chat-springai` 侧不再配置静态 `url`，由 `McpClientDiscoveryConfig` 按服务名解析实例
+
+### chat-business（8081）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/business/risk?customerId=` | 模拟客户风险等级查询（`VIP` 开头为低风险） |
+
+## 配置说明
+
+公共项（各 AI 服务一致）：
+
+```yaml
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
 ```
 
-调用链：
+### chat-springai 关键配置
 
-```text
-用户 → chat-springai(8080) ──MCP/SSE──▸ chat-mcp-server(8082) ──HTTP──▸ chat-business(8081)
-              │
-              ├─▸ DeepSeek（对话）
-              ├─▸ DashScope（Embedding）
-              └─▸ Elasticsearch（向量库 / 混合检索）
+| 配置 | 值 | 说明 |
+|---|---|---|
+| `spring.datasource.url` | `jdbc:h2:file:./data/chat_session` | 会话持久化，首次启动自动建表 |
+| `spring.elasticsearch.uris` | `http://192.168.101.100:9200` | ES 8.13 服务端 |
+| `spring.ai.vectorstore.elasticsearch.index-name` | `financial_rag` | 需预先建好索引与 Mapping |
+| `spring.ai.deepseek.*` | `deepseek-chat` | 对话模型，Key 取 `DEEPSEEK_API_KEY` |
+| `spring.ai.openai.*` | `text-embedding-v3` | 仅用于 Embedding（DashScope 兼容端点），Chat 已禁用 |
+| `spring.ai.mcp.client` | `type=SYNC`，无静态连接 | 连接由 Nacos 服务发现动态构建 |
+
+### chat-mcp-server 关键配置
+
+| 配置 | 值 | 说明 |
+|---|---|---|
+| `spring.ai.mcp.server.protocol` | `STREAMABLE` | 必须全大写，端点固定 `/mcp` |
+| `spring.ai.mcp.server.name` | `financial-tools-server` | MCP 握手返回的 serverInfo |
+| `spring.ai.mcp.server.type` | `async` | WebMVC 异步传输 |
+
+### chat-gateway 路由
+
+```yaml
+- id: spring-ai-route
+  uri: lb://chat-springai
+  predicates: [ Path=/api/springai/** ]
+  filters: [ RewritePath=/api/springai/(?<segment>.*), /api/${segment} ]
+- id: langchain4j-route
+  uri: lb://chat-langchain4j
+  predicates: [ Path=/api/langchain4j/** ]
+  filters: [ RewritePath=/api/langchain4j/(?<segment>.*), /api/${segment} ]
 ```
 
-各子模块只写 `<parent>com.lol:chat</parent>` + 依赖，版本一律由父工程 BOM 管理；新增子服务时在根 pom 的 `<modules>` 加一行即可。
+网关只做前缀剥离，两个服务内部路径完全一致，因此新增同类服务时只需加一条路由。
 
-## 快速开始
+## 环境变量
 
-### 1. 准备环境
+| 变量 | 必填 | 用途 |
+|---|---|---|
+| `DEEPSEEK_API_KEY` | 是 | Spring AI / LangChain4j 对话模型 |
+| `DASHSCOPE_API_KEY` | 是 | Embedding（OpenAI 兼容端点） |
 
-```powershell
-$env:DEEPSEEK_API_KEY="<你的 DeepSeek Key>"
-$env:DASHSCOPE_API_KEY="<你的 DashScope Key>"
+## 本地启动
+
+前置：JDK 21、Maven 3.9+、Nacos（8848）、Elasticsearch 8.13（9200）可用。
+
+```bash
+# 构建
+mvn -T 1C clean package
+
+# 按依赖顺序启动
+mvn -pl chat-business     spring-boot:run   # 8081
+mvn -pl chat-mcp-server   spring-boot:run   # 8082
+mvn -pl chat-springai     spring-boot:run   # 8080
+mvn -pl chat-langchain4j  spring-boot:run   # 8083
+mvn -pl chat-gateway      spring-boot:run   # 8084
 ```
 
-Elasticsearch 需可访问（默认 `http://192.168.101.100:9200`，可在 `application.yml` 的 `spring.elasticsearch.uris` 修改），并预先建好索引 `financial_rag`：
+`chat-springai` 不再强依赖 `chat-mcp-server` 的启动顺序：Nacos 查不到工具服务时只告警，工具无法调用但应用可正常启动。
 
-- `content`：text
-- `embedding`：dense_vector，dimensions = 1024
+## 技术栈
 
-### 2. 启动（注意顺序）
+| 组件 | 版本 |
+|---|---|
+| JDK | 21 |
+| Spring Boot | 4.1.1 |
+| Spring AI | 2.1.0-RC1 |
+| Spring Cloud | 2025.1.4 |
+| Spring Cloud Alibaba Nacos Discovery | 由 Spring Cloud BOM 管理 |
+| LangChain4j | 由 `chat-langchain4j` 模块管理 |
+| Elasticsearch（服务端 / 客户端） | 8.13.4 / BOM 管理 |
+| H2 | runtime |
 
-```powershell
-# 终端 1：业务服务 8081
-mvn -pl chat-business spring-boot:run
+## 设计要点
 
-# 终端 2：MCP Server 8082（需在 AI 服务之前就绪）
-mvn -pl chat-mcp-server spring-boot:run
-
-# 终端 3：AI 服务 8080
-mvn -pl chat-springai spring-boot:run
-```
-
-`chat-springai` 启动时会**同步初始化 MCP Client 并拉取工具列表**，8082 未就绪会直接导致启动失败（`mcpSyncClients ... Client failed to initialize`）。只调试对话、不测 MCP 工具时，可临时把 `spring.ai.mcp.client.enabled` 设为 `false`。
-
-首次启动会在 `chat-springai/data/` 下生成 H2 会话库，并自动建表（`AI_SESSION` / `AI_SESSION_EVENT` 等）。
-
-> 也可在 IDEA 中直接运行各模块的启动类：需把 working directory 设为对应模块目录（否则 H2 文件会生成在父目录）。
-
-### 3. 初始化知识库
-
-```powershell
-Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/knowledge/init
-```
-
-### 4. 对话
-
-```powershell
-Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/rag/chat `
-  -ContentType "application/json" `
-  -Body '{"query":"这款理财产品的业绩比较基准是多少？","sessionId":"demo-1"}'
-```
-
-## 工程结构
-
-```text
-chat-springai/src/main/java/com/ggzed/chat/
-├── ChatApplication.java              # 启动类
-├── ctl/                              # 接口层：只做路由与参数校验
-│   ├── ChatController.java           # 基础对话
-│   ├── RagController.java            # RAG 问答
-│   ├── SearchController.java         # 检索调试
-│   ├── KnowledgeController.java      # 知识库管理
-│   └── SecurityController.java       # 风控验证
-├── service/                          # 业务层
-│   ├── ChatService.java / RagService.java / HybridSearchService.java
-│   └── impl/                         # 对应实现
-├── advisor/                          # Advisor 责任链
-│   ├── TokenUsageAdvisor.java        # Token 与费用统计
-│   ├── SessionMemoryAdvisor.java     # 框架提供，会话记忆（Bean 在 config 中注册）
-│   ├── HybridSearchAdvisor.java      # 混合检索注入上下文
-│   ├── SecurityAdvisor.java          # 高危工具拦截
-│   └── ToolLoggingAdvisor.java       # 工具调用审计
-├── config/
-│   ├── ChatClientConfig.java         # ChatClient 与 Advisor 装配
-│   ├── ElasticsearchCompatConfig.java# 9.x 客户端兼容 8.x 服务端
-│   └── AiAsyncConfig.java            # 异步线程池
-├── tools/                            # 工具层
-│   ├── FinanceTools.java             # 理财收益计算、转账、申购
-│   └── InventoryTools.java           # 库存查询
-├── model/
-│   ├── request/                      # ChatRequest / RagRequest / RagChatRequest
-│   └── dto/                          # TokenUsageRecord
-└── common/
-    ├── result/                       # Result<T>、ResultCode
-    └── exception/                    # 全局异常处理、ApprovalRequiredException
-
-chat-springai/src/main/resources/
-├── application.yml                   # 模型、ES、H2、Session、MCP Client 配置
-└── doc/xy92.pdf                      # RAG 示例文档
-
-chat-business/src/main/java/com/ggzed/chat/
-├── BusinessApplication.java          # 启动类（8081）
-└── controller/BusinessController.java# GET /api/business/risk
-
-chat-mcp-server/src/main/java/com/ggzed/mcpserver/
-├── McpServerApplication.java         # 启动类（8082）
-├── config/McpServerConfig.java       # 注册 ToolCallbackProvider
-└── tools/BusinessMcpTools.java       # @McpTool queryRiskLevel，内部 RestClient 调 8081
-```
-
-## 已知注意事项
-
-- **ES 版本兼容**：服务端为 8.13.4，而 Spring AI 的 ES Starter 依赖 9.x 客户端。`ElasticsearchCompatConfig` 会在 HTTP 层把媒体类型改写为 `compatible-with=8`，否则 8.x 服务端返回 400。
-- **KNN 参数**：8.x 的 query DSL kNN 不接受 `k` 参数（`k` 是 9.x 语法），因此混合检索在应用层自行融合，不依赖服务端 `rank.rrf`。
-- **流式 Token 统计**：DeepSeek 的流式响应不返回 usage，`TokenUsageAdvisor` 的统计仅对非流式调用准确。
-- **Spring Cloud 版本**：父工程导入的是最新 GA `2025.1.4`（官方对应 Boot 4.0.x），而当前 Boot 为 4.1.1，暂无匹配的 Cloud 正式版本。BOM 只做版本管理、未引入任何 starter，所以不影响启动；真正接入注册中心/网关前需要对齐 Boot 与 Spring Cloud（或等 `2026.0` GA）。
-- **MCP 传输方式**：`spring-ai-starter-mcp-server-webflux` 默认走 **SSE**（`GET /sse` 建流 + `POST /mcp/message` 发消息），Client 端必须配 `spring.ai.mcp.client.sse.connections`；若误配 `streamable-http` 会因 `POST /` 返回 404 而报 `Server Not Found`。
-- **工具来源不一致**：`RagService.chat()` 已改为挂载 MCP 工具（`ToolCallbackProvider`），而 `chatStream()` 与 `testSecurity()` 仍挂本地 `FinanceTools`，流式链路暂时用不到 MCP 工具，后续需统一。
-- **会话数据**：`data/` 已加入 `.gitignore`，H2 数据文件不入库。
+- **AI 与业务解耦**：大模型不允许直接访问业务接口，统一经 MCP Server；工具不可用时返回自然语言降级话术，避免异常暴露给模型。
+- **工具动态发现**：`chat-springai` 通过 Nacos 解析 `chat-mcp-server` 实例，工具清单由 MCP 握手动态获取，不再硬编码地址。
+- ** Advisor 责任链**：Token 用量统计、安全护栏、混合检索、会话记忆按 order 串联，记忆类 Advisor 排在检索之后。
+- **会话隔离**：Session ID + JDBC（H2）持久化，重启后仍可续聊，多个会话互不串扰。

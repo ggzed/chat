@@ -4,40 +4,40 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.lol</groupId>
+        <groupId>com.ggzed</groupId>
         <artifactId>chat</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>chat-mcp-server</artifactId>
+    <name>chat-mcp-server</name>
+    <description>MCP 工具服务：对外暴露业务能力，供 AI 服务动态发现</description>
 
-    <!-- 编译版本与编码由父工程 java.version / spring-boot-starter-parent 统一管理 -->
+    <!-- java.version、Spring AI 与 Spring Cloud BOM 均由父工程统一管理 -->
     <dependencies>
+        <!-- Web 基础（Servlet 栈，与 chat-springai 保持一致） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webflux</artifactId>
+            <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+
+        <!-- Spring AI MCP Server（WebMVC 传输，支持 STREAMABLE / SSE） -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-mcp-server-webflux</artifactId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
         </dependency>
-        <!-- RestClient 在 spring-web 中，用于 HTTP 调用 8081 业务服务 -->
+
+        <!-- Nacos 服务注册与发现 -->
         <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-web</artifactId>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.alibaba.nacos</groupId>
-            <artifactId>nacos-client</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.alibaba.nacos</groupId>
-            <artifactId>nacos-maintainer-client</artifactId>
-        </dependency>
+
+        <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 

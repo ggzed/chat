@@ -1,4 +1,14 @@
 spring:
+  application:
+    # 👈 核心：这个名字必须和网关里 lb://chat-springai 保持一致！
+    name: chat-springai
+  # 👈 注册到 Nacos
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
   datasource:
     # 注意：file:./data/chat_session 表示在项目根目录生成 data/chat_session.mv.db 文件
     url: jdbc:h2:file:./data/chat_session;MODE=MySQL;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE
@@ -11,11 +21,9 @@ spring:
   ai:
     mcp:
       client:
-        streamable-http: # 使用 streamable-http 配置块
-          connections:
-            financial-tools:
-              url: http://localhost:8082
-              endpoint: /mcp  # 默认端点就是 /mcp
+        # 不再配置静态连接：MCP Server 地址由 Nacos 服务发现动态解析（见 McpClientDiscoveryConfig）
+        type: SYNC
+        request-timeout: 30s
     session:
       repository:
         jdbc:
@@ -48,6 +56,14 @@ spring:
 
 server:
   port: 8080
+
+# MCP Client 动态发现配置：从 Nacos 解析 chat-mcp-server 实例，无需固定 IP:PORT
+mcp:
+  client:
+    service-name: chat-mcp-server
+    endpoint: /mcp
+    request-timeout: 30s
+
 logging:
   level:
     # 开启 Spring AI Client 的日志，用于查看请求和响应
