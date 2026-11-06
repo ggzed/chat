@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.ggzed</groupId>
-        <artifactId>chat</artifactId>
+        <artifactId>yp-server</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
 

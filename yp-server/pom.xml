@@ -12,11 +12,11 @@
     </parent>
 
     <groupId>com.ggzed</groupId>
-    <artifactId>chat</artifactId>
+    <artifactId>yp-server</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>chat</name>
-    <description>微服务父工程：统一管理子模块与依赖版本</description>
+    <name>yp-server</name>
+    <description>后端父工程：统一管理子服务与依赖版本</description>
 
     <modules>
         <module>chat-springai</module>

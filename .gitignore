@@ -1,7 +1,24 @@
+### 构建产物 ###
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+*.tsbuildinfo
+
+### 前端（Node / Vite）###
+node_modules/
+dist/
+dist-ssr/
+.vite/
+coverage/
+.eslintcache
+
+### 日志 ###
+logs/
+*.log
+hs_err_pid*
+replay_pid*
+.attach_pid*
 
 ### IntelliJ IDEA ###
 .idea/
@@ -9,8 +26,9 @@ target/
 *.iml
 *.ipr
 
-### Backup files ###
+### 备份文件 ###
 *.bak
+*.orig
 
 ### RAG generated artifacts ###
 vector-store.json
