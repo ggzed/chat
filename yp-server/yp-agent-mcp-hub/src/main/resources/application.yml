@@ -1,0 +1,22 @@
+spring:
+  application:
+    # 👈 服务名，与 yp-assistant-engine 的 Nacos 发现目标保持一致
+    name: yp-agent-mcp-hub
+  # 👈 注册到 Nacos
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+  ai:
+    mcp:
+      server:
+        # 从 Spring AI 2.0.0 开始官方推荐 STREAMABLE，统一走 /mcp 端点
+        protocol: STREAMABLE  # 必须全大写
+        type: async
+        name: financial-tools-server
+        version: 1.0.0
+
+server:
+  port: 8083

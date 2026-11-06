@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ROLES, groupOf } from '@/data/console'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -9,6 +9,13 @@ import AppIcon from '@/components/ui/AppIcon.vue'
 const auth = useAuthStore()
 const ui = useUiStore()
 const route = useRoute()
+const router = useRouter()
+
+function logout() {
+  auth.logout()
+  ui.toast('已退出登录', 'ok')
+  router.replace({ name: 'login' })
+}
 
 const groupLabel = computed(() => groupOf(route.path)?.label ?? '')
 const title = computed(() => route.meta.title ?? '')
@@ -51,10 +58,13 @@ const readOnly = computed(
       <div class="user-meta">
         <div class="avatar">{{ ROLES[auth.role].short }}</div>
         <div>
-          <strong>{{ ROLES[auth.role].person.split(' · ')[0] }}</strong>
+          <strong>{{ auth.realName || ROLES[auth.role].person.split(' · ')[0] }}</strong>
           <span>{{ ROLES[auth.role].name }}</span>
         </div>
       </div>
+      <button class="icon-btn" type="button" aria-label="退出登录" title="退出登录" @click="logout">
+        <AppIcon name="logout" :size="16" />
+      </button>
     </div>
   </header>
 </template>

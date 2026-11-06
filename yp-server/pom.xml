@@ -19,11 +19,12 @@
     <description>后端父工程：统一管理子服务与依赖版本</description>
 
     <modules>
-        <module>chat-springai</module>
-        <module>chat-business</module>
-        <module>chat-mcp-server</module>
-        <module>chat-langchain4j</module>
-        <module>chat-gateway</module>
+        <module>yp-assistant-engine</module>
+        <module>yp-workflow-engine</module>
+        <module>yp-agent-gateway</module>
+        <module>yp-agent-mcp-hub</module>
+        <module>yp-mock-business</module>
+        <module>yp-agent-admin</module>
     </modules>
 
     <properties>

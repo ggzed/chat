@@ -1,0 +1,37 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: yp-agent-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: assistant-engine-route
+              # 👇 lb 代表 LoadBalanced，后面是 Nacos 里的服务名
+              uri: lb://yp-assistant-engine
+              predicates:
+                # 对外：POST /api/chat/assistant/simple
+                - Path=/api/chat/assistant/**
+              filters:
+                - RewritePath=/api/chat/assistant/(?<segment>.*), /api/chat/$\{segment}
+
+            - id: workflow-engine-route
+              uri: lb://yp-workflow-engine
+              predicates:
+                # 对外：POST /api/chat/workflow/simple（与 assistant 同路径、同入参、同出参）
+                - Path=/api/chat/workflow/**
+              filters:
+                - RewritePath=/api/chat/workflow/(?<segment>.*), /api/chat/$\{segment}
+
+            - id: agent-admin-route
+              uri: lb://yp-agent-admin
+              predicates:
+                # 管理后台：直接透传 /api/admin/**
+                - Path=/api/admin/**

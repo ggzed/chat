@@ -19,6 +19,7 @@ import BillingView from '@/views/BillingView.vue'
 import TraceView from '@/views/TraceView.vue'
 import ComplianceView from '@/views/ComplianceView.vue'
 import DeniedView from '@/views/DeniedView.vue'
+import LoginView from '@/views/LoginView.vue'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -31,6 +32,12 @@ declare module 'vue-router' {
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/dashboard/overview' },
+  {
+    path: '/login',
+    name: 'login',
+    component: LoginView,
+    meta: { title: '登录' }
+  },
   {
     path: '/dashboard/overview',
     name: 'overview',
@@ -141,9 +148,15 @@ export const router = createRouter({
   routes
 })
 
-// 路由层 RBAC：越权统一落到可解释的 403 页，而不是静默重定向首页
+// 认证守卫：未登录统一去登录页并携带回跳地址；登录后按 RBAC 校验，越权落到 403 页
 router.beforeEach((to) => {
   const auth = useAuthStore()
+  if (to.name === 'login') {
+    return auth.isAuthenticated ? { name: 'overview' } : true
+  }
+  if (!auth.isAuthenticated) {
+    return { name: 'login', query: to.fullPath === '/' ? {} : { redirect: to.fullPath } }
+  }
   const roles = to.meta.roles
   if (roles && !roles.includes(auth.role)) {
     return { name: 'denied', query: { from: to.fullPath } }

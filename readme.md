@@ -14,17 +14,18 @@ yp/
 ├── readme.md
 ├── img.png                  # 架构图
 ├── yp-server/               # 后端 Maven 多模块工程（com.ggzed:yp-server）
-│   ├── chat-springai/       # 对话 / RAG / 混合检索 / 会话记忆 / MCP Client
-│   ├── chat-business/       # 模拟业务系统，供 MCP Server 调用
-│   ├── chat-mcp-server/     # MCP Server，暴露业务工具
-│   ├── chat-langchain4j/    # LangChain4j AI Service + 本地工具
-│   └── chat-gateway/        # Spring Cloud Gateway 统一入口
+│   ├── yp-assistant-engine/ # 问答引擎：对话 / RAG / 混合检索 / 会话记忆 / MCP Client
+│   ├── yp-mock-business/    # 模拟存量业务系统，供 MCP Server 调用
+│   ├── yp-agent-mcp-hub/    # MCP 工具枢纽，暴露业务工具
+│   ├── yp-workflow-engine/  # 工作流引擎：LangChain4j AI Service + 本地工具
+│   ├── yp-agent-gateway/    # 统一网关：Spring Cloud Gateway 统一入口
+│   └── yp-agent-admin/      # 管理后台引擎：Agent 配置 / 知识库 / 计费（新增）
 └── yp-front/                # 前端 Vue 3 控制台
     ├── index.html
     ├── vite.config.ts       # /api 代理到网关，@ 别名
     ├── .env.development
     └── src/
-        ├── router/          # 16 个页面路由 + RBAC 守卫
+        ├── router/          # 17 个路由页面 + RBAC 守卫
         ├── data/            # 模拟数据层（console.ts）与图标库（icons.ts）
         ├── stores/          # auth / ui / platform / chat（Pinia）
         ├── styles/          # console.css，唯一设计变量来源
@@ -40,54 +41,56 @@ yp/
 ## 后端架构
 
 ```
-                 ┌──────────────────────────────────────────────┐
-   HTTP 调用      │  chat-gateway :8084                          │
-  ──────────────▶│  /api/springai/**      /api/langchain4j/**   │
-                 └───────┬───────────────────────┬──────────────┘
-                         │ lb://chat-springai     │ lb://chat-langchain4j
-                         ▼                        ▼
-              ┌────────────────────┐   ┌──────────────────────┐
-              │ chat-springai      │   │ chat-langchain4j     │
-              │ :8080              │   │ :8083                │
-              │ 对话/RAG/混合检索/  │   │ LangChain4j AI       │
-              │ 会话记忆/Advisor    │   │ Service + 工具        │
-              └─────────┬──────────┘   └──────────────────────┘
+                 ┌───────────────────────────────────────────────────┐
+   HTTP 调用      │  yp-agent-gateway :8080                           │
+  ──────────────▶│  /api/chat/assistant/**  /api/chat/workflow/**    │
+                 │  /api/admin/**（透传 → yp-agent-admin :8085）      │
+                 └───────┬───────────────────────┬───────────────────┘
+                         │ lb://yp-assistant-engine  │ lb://yp-workflow-engine
+                         ▼                           ▼
+              ┌──────────────────────┐   ┌──────────────────────┐
+              │ yp-assistant-engine  │   │ yp-workflow-engine   │
+              │ :8081                │   │ :8084                │
+              │ 对话/RAG/混合检索/    │   │ LangChain4j AI       │
+              │ 会话记忆/Advisor      │   │ Service + 工具        │
+              └─────────┬────────────┘   └──────────────────────┘
                         │ MCP Client（按服务名从 Nacos 动态解析）
                         ▼
-              ┌────────────────────┐
-              │ chat-mcp-server    │  MCP 协议 /mcp (STREAMABLE)
-              │ :8082              │  工具：queryRiskLevel
-              └─────────┬──────────┘
+              ┌──────────────────────┐
+              │ yp-agent-mcp-hub     │  MCP 协议 /mcp (STREAMABLE)
+              │ :8083                │  工具：queryRiskLevel
+              └─────────┬────────────┘
                         │ REST
                         ▼
-              ┌────────────────────┐
-              │ chat-business      │  GET /api/business/risk
-              │ :8081              │  （模拟业务系统）
-              └────────────────────┘
+              ┌──────────────────────┐
+              │ yp-mock-business     │  GET /api/business/risk
+              │ :8082                │  （模拟业务系统）
+              └──────────────────────┘
 ```
 
 ## 模块与端口
 
 | 模块 | 端口 | Nacos 服务名 | 包名 | 职责 |
 |---|---|---|---|---|
-| `chat-springai` | 8080 | `chat-springai` | `com.ggzed.springai` | Spring AI 对话、RAG、混合检索、会话记忆、MCP Client |
-| `chat-business` | 8081 | 不注册 | `com.ggzed.business` | 模拟业务系统，供 MCP Server 调用 |
-| `chat-mcp-server` | 8082 | `chat-mcp-server` | `com.ggzed.mcpserver` | MCP Server（WebMVC + STREAMABLE），暴露业务工具 |
-| `chat-langchain4j` | 8083 | `chat-langchain4j` | `com.ggzed.lc4j` | LangChain4j AI Service + 本地工具 |
-| `chat-gateway` | 8084 | `chat-gateway` | `com.ggzed.gateway` | Spring Cloud Gateway 统一入口、跨域 |
+| `yp-assistant-engine` | 8081 | `yp-assistant-engine` | `com.ggzed.springai` | 问答引擎：Spring AI 对话、RAG、混合检索、会话记忆、MCP Client |
+| `yp-mock-business` | 8082 | 不注册 | `com.ggzed.business` | 模拟存量业务系统，供 MCP Server 调用 |
+| `yp-agent-mcp-hub` | 8083 | `yp-agent-mcp-hub` | `com.ggzed.mcpserver` | MCP 工具枢纽（WebMVC + STREAMABLE），暴露业务工具 |
+| `yp-workflow-engine` | 8084 | `yp-workflow-engine` | `com.ggzed.lc4j` | 工作流引擎：LangChain4j AI Service + 本地工具 |
+| `yp-agent-gateway` | 8080 | `yp-agent-gateway` | `com.ggzed.gateway` | 统一网关：Spring Cloud Gateway 统一入口、跨域 |
+| `yp-agent-admin` | 8085 | `yp-agent-admin` | `com.ggzed.admin` | 管理后台引擎：Agent 配置、知识库上传、计费查询 |
 | `yp-front` | 5173 | 不注册 | — | Vue 3 控制台，`/api` 代理到网关 |
 
 父工程坐标 `com.ggzed:yp-server`，`packaging=pom`，只做 `<modules>` 与依赖版本管理（Spring Boot / Spring AI / Spring Cloud BOM、`java.version`），子模块依赖不写版本。
 
 ## 统一的对话契约
 
-`chat-springai` 与 `chat-langchain4j` 使用**完全相同**的路径、入参、出参，客户端可无缝切换。
+`yp-assistant-engine` 与 `yp-workflow-engine` 使用**完全相同**的路径、入参、出参，客户端可无缝切换。
 
 | 项 | 约定 |
 |---|---|
 | 非流式 | `POST /api/chat/simple` |
-| 流式 | `POST /api/chat/stream`（SSE，目前仅 `chat-springai` 提供） |
-| 网关闭环节 | `POST /api/springai/chat/simple`、`POST /api/langchain4j/chat/simple` |
+| 流式 | `POST /api/chat/stream`（SSE，目前仅 `yp-assistant-engine` 提供） |
+| 网关闭环节 | `POST /api/chat/assistant/simple`、`POST /api/chat/workflow/simple` |
 | 请求体 | `{"message": "问题内容", "sessionId": "会话 ID"}` |
 | 成功响应 | `{"code": 200, "message": "操作成功", "data": {"sessionId": "...", "content": "..."}}` |
 | 校验失败 | `{"code": 400, "message": "消息内容不能为空", "data": null}` |
@@ -96,7 +99,7 @@ yp/
 
 ## 接口一览
 
-### chat-springai（8080）
+### yp-assistant-engine（8081）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -110,7 +113,7 @@ yp/
 | POST | `/api/knowledge/split_preview` | 文档切分预览 |
 | POST | `/api/security/test` | 安全 Advisor 演示 |
 
-### chat-langchain4j（8083）
+### yp-workflow-engine（8084）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -118,13 +121,13 @@ yp/
 
 模型为 DeepSeek 的 OpenAI 兼容接口，当前配置为非流式 `OpenAiChatModel`，因此不提供 `/stream`。
 
-### chat-mcp-server（8082）
+### yp-agent-mcp-hub（8083）
 
 - 协议端点：`POST /mcp`，MCP `STREAMABLE`（JSON-RPC，非 REST）
-- 工具：`queryRiskLevel(customerId)`，内部调用 `chat-business` 的 `/api/business/risk`，超时与异常均做自然语言降级，不向模型抛出堆栈
-- 启动即注册到 Nacos；`chat-springai` 侧不配置静态 `url`，由 `McpClientDiscoveryConfig` 按服务名解析实例
+- 工具：`queryRiskLevel(customerId)`，内部调用 `yp-mock-business` 的 `/api/business/risk`，超时与异常均做自然语言降级，不向模型抛出堆栈
+- 启动即注册到 Nacos；`yp-assistant-engine` 侧不配置静态 `url`，由 `McpClientDiscoveryConfig` 按服务名解析实例
 
-### chat-business（8081）
+### yp-mock-business（8082）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -188,11 +191,11 @@ RBAC 行为：
 `yp-front/.env.development`：
 
 ```bash
-VITE_PROXY_TARGET=http://localhost:8084   # 开发代理目标（网关）
-VITE_CHAT_PREFIX=/api/springai            # 网关对外前缀
+VITE_PROXY_TARGET=http://localhost:8080   # 开发代理目标（网关）
+VITE_CHAT_PREFIX=/api/chat/assistant      # 网关对外前缀（问答引擎）
 ```
 
-`vite.config.ts` 将 `/api` 代理到 `VITE_PROXY_TARGET`；绕过网关直连 8080 时，把 `VITE_PROXY_TARGET` 改为 `http://localhost:8080` 并将 `VITE_CHAT_PREFIX` 置空。
+`vite.config.ts` 将 `/api` 代理到 `VITE_PROXY_TARGET`；绕过网关直连问答引擎 8081 时，把 `VITE_PROXY_TARGET` 改为 `http://localhost:8081` 并将 `VITE_CHAT_PREFIX` 置空。
 
 ## 配置说明
 
@@ -208,7 +211,7 @@ spring:
         password: nacos
 ```
 
-### chat-springai 关键配置
+### yp-assistant-engine 关键配置
 
 | 配置 | 值 | 说明 |
 |---|---|---|
@@ -219,7 +222,7 @@ spring:
 | `spring.ai.openai.*` | `text-embedding-v3` | 仅用于 Embedding（DashScope 兼容端点），Chat 已禁用 |
 | `spring.ai.mcp.client` | `type=SYNC`，无静态连接 | 连接由 Nacos 服务发现动态构建 |
 
-### chat-mcp-server 关键配置
+### yp-agent-mcp-hub 关键配置
 
 | 配置 | 值 | 说明 |
 |---|---|---|
@@ -227,20 +230,23 @@ spring:
 | `spring.ai.mcp.server.name` | `financial-tools-server` | MCP 握手返回的 serverInfo |
 | `spring.ai.mcp.server.type` | `async` | WebMVC 异步传输 |
 
-### chat-gateway 路由
+### yp-agent-gateway 路由
 
 ```yaml
-- id: spring-ai-route
-  uri: lb://chat-springai
-  predicates: [ Path=/api/springai/** ]
-  filters: [ RewritePath=/api/springai/(?<segment>.*), /api/${segment} ]
-- id: langchain4j-route
-  uri: lb://chat-langchain4j
-  predicates: [ Path=/api/langchain4j/** ]
-  filters: [ RewritePath=/api/langchain4j/(?<segment>.*), /api/${segment} ]
+- id: assistant-engine-route
+  uri: lb://yp-assistant-engine
+  predicates: [ Path=/api/chat/assistant/** ]
+  filters: [ RewritePath=/api/chat/assistant/(?<segment>.*), /api/chat/${segment} ]
+- id: workflow-engine-route
+  uri: lb://yp-workflow-engine
+  predicates: [ Path=/api/chat/workflow/** ]
+  filters: [ RewritePath=/api/chat/workflow/(?<segment>.*), /api/chat/${segment} ]
+- id: agent-admin-route
+  uri: lb://yp-agent-admin
+  predicates: [ Path=/api/admin/** ]   # 直接透传，不剥离前缀
 ```
 
-网关只做前缀剥离，两个服务内部路径完全一致，因此新增同类服务时只需加一条路由。
+网关只做前缀剥离，问答与工作流两个服务内部路径完全一致，因此新增同类服务时只需加一条路由。
 
 ## 环境变量
 
@@ -262,14 +268,15 @@ cd yp-server
 mvn -T 1C clean package
 
 # 按依赖顺序启动
-mvn -pl chat-business     spring-boot:run   # 8081
-mvn -pl chat-mcp-server   spring-boot:run   # 8082
-mvn -pl chat-springai     spring-boot:run   # 8080
-mvn -pl chat-langchain4j  spring-boot:run   # 8083
-mvn -pl chat-gateway      spring-boot:run   # 8084
+mvn -pl yp-mock-business    spring-boot:run   # 8082
+mvn -pl yp-agent-mcp-hub    spring-boot:run   # 8083
+mvn -pl yp-assistant-engine spring-boot:run   # 8081
+mvn -pl yp-workflow-engine  spring-boot:run   # 8084
+mvn -pl yp-agent-admin      spring-boot:run   # 8085
+mvn -pl yp-agent-gateway    spring-boot:run   # 8080
 ```
 
-`chat-springai` 不强依赖 `chat-mcp-server` 的启动顺序：Nacos 查不到工具服务时只告警，工具无法调用但应用可正常启动。
+`yp-assistant-engine` 不强依赖 `yp-agent-mcp-hub` 的启动顺序：Nacos 查不到工具服务时只告警，工具无法调用但应用可正常启动。
 
 ### 前端启动命令
 
@@ -297,7 +304,7 @@ npm run lint                 # ESLint 检查
 
 说明：
 
-- 开发端口固定 5173，`/api` 按 `.env.development` 的 `VITE_PROXY_TARGET` 代理到网关 `http://localhost:8084`。
+- 开发端口固定 5173，`/api` 按 `.env.development` 的 `VITE_PROXY_TARGET` 代理到网关 `http://localhost:8080`。
 - 控制台当前由 `src/data/console.ts` 模拟数据驱动，不启动后端也能完整浏览与操作。
 
 ## 技术栈
@@ -318,7 +325,7 @@ npm run lint                 # ESLint 检查
 ## 设计要点
 
 - **AI 与业务解耦**：大模型不允许直接访问业务接口，统一经 MCP Server；工具不可用时返回自然语言降级话术，避免异常暴露给模型。
-- **工具动态发现**：`chat-springai` 通过 Nacos 解析 `chat-mcp-server` 实例，工具清单由 MCP 握手动态获取，不硬编码地址。
+- **工具动态发现**：`yp-assistant-engine` 通过 Nacos 解析 `yp-agent-mcp-hub` 实例，工具清单由 MCP 握手动态获取，不硬编码地址。
 - **Advisor 责任链**：Token 用量统计、安全护栏、混合检索、会话记忆按 order 串联，记忆类 Advisor 排在检索之后。
 - **会话隔离**：Session ID + JDBC（H2）持久化，重启后仍可续聊，多个会话互不串扰。
 - **可解释的权限边界**：前端越权不静默跳首页，统一落到带原路径的 403 页；高危工具在向导内必须二次确认并在发布前校验阻断项。

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ALL_ROLES, NAV, ROLES, groupOf } from '@/data/console'
+import { NAV, ROLES, groupOf } from '@/data/console'
 import type { NavItem, RoleKey } from '@/data/console'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -64,7 +64,7 @@ watch(
 
     <div class="role-switch" role="group" aria-label="演示角色切换">
       <button
-        v-for="key in ALL_ROLES"
+        v-for="key in auth.availableRoles"
         :key="key"
         class="role-btn"
         :class="{ 'is-on': auth.role === key }"
